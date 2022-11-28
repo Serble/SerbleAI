@@ -1,0 +1,129 @@
+@page "/settings"
+@using SerbleAi.Data.Schemas
+@using GeneralPurposeLib
+@using SerbleAi.Data
+@inject IJSRuntime JSRuntime
+<RequireLogin Callback="OnLogin" RedirectToLogin="false"></RequireLogin>
+
+@if (!_loaded) {
+    <p>Loading...</p>
+}
+else {
+    <div class="text-center">
+        <div class="row">
+            <div class="col-md-3 border-right"></div>
+            <div class="col-md-5 border-right">
+                
+                <h2>Local Settings</h2>
+                
+                @if (_user == null) {
+                    <h3>User Not Logged In</h3>
+                }
+                else {
+                    <h3>
+                        User <em>@_user.Username</em> has used
+                        <em>@_storedUser.UsedTokens</em> out of <em>@UserAiLimitManager.GetLimit(_user)</em> tokens from Serble
+                        (@(_storedUser.UsedTokens / (float) UserAiLimitManager.GetLimit(_user))%)
+                    </h3>
+                    <h4>
+                        Resets @_resetDate.DayOfWeek.ToString() 
+                        @_resetDate.Year/@_resetDate.Month/@_resetDate.Day
+                        at @_resetDate.Hour:@_resetDate.Minute:@_resetDate.Second
+                    </h4>
+                }
+
+                <br/>
+
+                <label class="col-form-label-sm">Token Type</label>
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+                        @(_tokenType == "serble" ? "Serble Account" : "Personal OpenAI Token")
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                        <li><button class="dropdown-item" @onclick='e => UpdateTokenType("serble")'>Serble Account</button></li>
+                        <li><button class="dropdown-item" @onclick='e => UpdateTokenType("token")'>Personal OpenAI Token</button></li>
+                    </ul>
+                </div>
+                <p>
+                    This is how you will use the service, if you choose to use a Serble account,
+                    you will be able to use the service for free, but you will be limited to a certain amount of tokens per month.
+                </p>
+
+                <br/>
+
+                @if (_tokenType == "token") {
+                    <label for="token">OpenAI Token</label>
+                    <div class="input-group">
+                        <input
+                            id="token"
+                            type="text"
+                            class="form-control"
+                            placeholder="OpenAI Token"
+                            aria-label="OpenAI Token"
+                            aria-describedby="basic-addon2"
+                            style="background-color: rgb(34, 34, 34); color: #ffffff"
+                            value="@_token">
+                        <div class="input-group-append">
+                            <button
+                                class="btn btn-outline-light"
+                                type="button"
+                                id="tokenSave"
+                                onclick="localStorage.setItem('token', document.getElementById('token').value); 
+                                document.getElementById('tokenSave').innerHTML = 'Saved'; window.location.reload();">Save</button>
+                        </div>
+                    </div>
+                }
+
+                <hr/>
+            </div>
+        </div>
+
+    </div>
+}
+
+
+
+
+
+@code {
+    private bool _loaded;
+    private User? _user;
+    private StoredUser _storedUser;
+    private DateTime _resetDate;
+    private string _tokenType = "serble";
+    private string _token = "";
+
+    private async Task UpdateTokenType(string type) {
+        _tokenType = type;
+        HtmlInteractor interactor = new(JSRuntime);
+        await interactor.SaveToLocalStorage("tokenType", type);
+        StateHasChanged();
+    }
+
+    private async Task OnLogin((User?, string) data) {
+        _loaded = true;
+        _user = data.Item1;
+        
+        HtmlInteractor htmlInteractor = new(JSRuntime);
+        string tokenType = await htmlInteractor.GetFromLocalStorage("tokenType");
+        if (tokenType == "token") {
+            _tokenType = "token";
+        }
+        _token = await htmlInteractor.GetFromLocalStorage("token");
+
+        if (_user != null) {
+            StoredUser? storedUser = await Program.StorageManager.GetUser(_user.Id!);
+            if (storedUser == null) {
+                Logger.Warn($"User {_user.Username} has no stored user data");
+                return;
+            }
+            _storedUser = storedUser.Value;
+            _resetDate = DateTime.FromBinary(_storedUser.LastTokenRenewal).AddDays(28).ToLocalTime();
+            await _storedUser.CheckTokens();
+        }
+
+        _loaded = true;
+        StateHasChanged();
+    }
+    
+}

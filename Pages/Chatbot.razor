@@ -1,0 +1,157 @@
+﻿@page "/chatbot"
+@inject IJSRuntime JsRuntime
+@using SerbleAi.Data
+@using SerbleAi.Data.Schemas
+@using GeneralPurposeLib
+
+<PageTitle>Serble AI - Chat Bot</PageTitle>
+<RequireLogin Callback="LoginCallback" RedirectToLogin="false"></RequireLogin>
+<link href="css/chat.css" rel="stylesheet"/>
+
+<div class="text-center">
+    <h1>Chat Bot</h1>
+    
+    <p>AI chatbot using OpenAI's services.</p>
+</div>
+
+<section style="">
+    <div class="container py-5">
+
+        <div class="row d-flex justify-content-center">
+            <div class="col-md-10 col-lg-8 col-xl-6">
+
+                <div class="card" id="chat2">
+                    <div class="card-header d-flex justify-content-between align-items-center p-3" style="background-color: #222426">
+                        <h5 class="mb-0">Chatbot</h5>
+                        <a href="/settings" type="button" class="btn btn-secondary btn-sm" role="button" data-mdb-ripple-color="dark">Settings</a>
+                    </div>
+                    <div class="card-body overflow-auto" id="msgScroll" data-mdb-perfect-scrollbar="true" style="position: relative; height: 400px; background-color: #222426">
+                        
+                        @foreach (string msg in _messages) {
+                            @if (msg.StartsWith("User:")) {
+                                <div class="d-flex flex-row justify-content-end">
+                                    <div>
+                                        <p class="small p-2 me-3 mb-1 text-white rounded-3 bg-primary">@msg</p>
+                                    </div>
+                                </div>
+                                <div class="p-1"></div>
+                            }
+                            else {
+                                <div class="d-flex flex-row justify-content-start mb-4">
+                                    <div>
+                                        <p class="small p-2 ms-3 mb-1 rounded-3 bg-secondary" style="background-color: #f5f6f7;">@msg</p>
+                                    </div>
+                                </div>
+                                <div class="p-1"></div>
+                            }
+                        
+                        }
+
+                    </div>
+                    <form onsubmit="return false" class="card-footer text-muted d-flex justify-content-start align-items-center p-3" style="background-color: #222426">
+                        <input type="text" class="form-control form-control-lg" id="msg"
+                                   placeholder="Enter message" style="background-color: #222426; color: white">
+                            <button class="btn btn-lg btn-outline-light" @onclick="Send">Send</button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</section>
+
+
+
+@code {
+    private string[] _messages = { "User: Hello", "Bot: Hey there friend!", "User: How are you?", "Bot: I'm good, it's nice to see you again" };
+    private string _openAiToken = "";
+    private string _tokenType = "serble";
+    private User? _user;
+    private StoredUser? _storedUser;
+
+    private async Task LoginCallback((User?, string) data) {
+        _user = data.Item1;
+    }
+
+    protected override async void OnAfterRender(bool firstRender) {
+        // Get openai token from local storage
+        HtmlInteractor htmlInteractor = new(JsRuntime);
+        _openAiToken = await htmlInteractor.GetFromLocalStorage("token");
+        _tokenType = await htmlInteractor.GetFromLocalStorage("tokenType");
+        StateHasChanged();
+    }
+
+    private async void Send() {
+        HtmlInteractor interactor = new(JsRuntime);
+        string message = await interactor.GetValue("msg");
+        await interactor.SetValue("msg", "");
+        _messages = _messages.Append($"User: {message}").ToArray();
+        StateHasChanged();
+        await interactor.InvokeCode("var objDiv = document.getElementById('msgScroll');objDiv.scrollTop = objDiv.scrollHeight; console.log('scrolled to bottom');");
+        
+        string conversation = string.Join("\n", _messages);
+        string prompt = AiManager.Personality + conversation;
+
+        string token;
+        bool isSerbleToken = _tokenType == "serble";
+        if (_tokenType == "token") {
+            token = _openAiToken;
+        }
+        else {  // Serble
+            if (!await UserAiLimitManager.CanUseAi(_user, prompt)) {
+                await interactor.Log("User has reached their AI limit");
+                await interactor.SetHtml("error", "You have reached your token limit, check when they renew <a href=\"/settings\">here</a>");
+                return;
+            }
+            token = GlobalConfig.Config["OpenAIToken"];
+        }
+
+        // Get a response from the bot
+        // Put messages in this format: "User: Hello\nBot: Hi there!"
+        AiResponse resp;
+        try {
+            resp = await AiManager.GetResponse(token, prompt, isSerbleToken ? _user!.Id! : null);
+        }
+        catch (Exception e) {
+            await interactor.Log(e.Message);
+            Logger.Debug(e);
+            resp = new AiResponse(0, "Error: " + e.Message);
+        }
+        
+        if (isSerbleToken) {
+            // Get stored user
+            if (_storedUser == null) {
+                _storedUser = await Program.StorageManager.GetUser(_user!.Id!);
+                if (_storedUser == null) {
+                    // Not on record
+                    await interactor.Log($"User {_user.Username!} not on record");
+                    Logger.Warn($"User {_user.Username!} not on record");
+                    await interactor.SetHtml("error", "Oh No, something went wrong. Please clear your cookies and try again");
+                    return;
+                }
+            }
+        
+            await UserAiLimitManager.AddTokens(_storedUser.Value, resp.UsedTokens);
+            await interactor.Log("Used " + resp.UsedTokens + " tokens");
+        }
+
+        await interactor.InvokeCode(@"
+var objDiv = document.getElementById('msgScroll');
+window.isMsgScrolledToTop = objDiv.scrollHeight - objDiv.scrollTop === objDiv.clientHeight;
+console.log('Is max scrolled: ' + window.isMsgScrolledToTop);
+");
+        
+        _messages = _messages.Append($"Bot: {resp}").ToArray();
+        StateHasChanged();
+
+        await interactor.InvokeCode(@"
+if (window.isMsgScrolledToTop) {
+var objDiv = document.getElementById('msgScroll');
+objDiv.scrollTop = objDiv.scrollHeight;
+console.log('scrolled to bottom');
+} else {
+console.log('not scrolled to bottom');
+}");
+    }
+}

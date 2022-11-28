@@ -1,0 +1,99 @@
+@page "/OAuthCallback"
+@using System.Web
+@using System.Collections.Specialized
+@using SerbleAi.Data
+@using SerbleAi.Data.Schemas
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
+
+<h3>@(_state == "" ? "Logging you in..." : "")</h3>
+
+<p>@_state</p>
+
+@code {
+    private string _state = "";
+    
+    // OnAfterRenderAsync
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender) {
+            return;
+        }
+        HtmlInteractor htmlInteractor = new HtmlInteractor(JsRuntime);
+        // Get oauth callback query parameters
+        Uri uri = new(NavigationManager.Uri);
+        NameValueCollection query = HttpUtility.ParseQueryString(uri.Query);
+        string? code = query["code"];
+        string? state = query["state"];
+        string? authorized = query["authorized"];
+        string? stateFromStorage = await JsRuntime.InvokeAsync<string>("localStorage.getItem", "oauth_state");
+        await htmlInteractor.Log("OAuth Code: " + code);
+        await htmlInteractor.Log("OAuth Authorized: " + authorized);
+        await htmlInteractor.Log("OAuth State: " + state);
+        await htmlInteractor.Log("OAuth State from storage: " + stateFromStorage);
+
+        if (state != stateFromStorage) {
+            _state = "OAuth state mismatch";
+            StateHasChanged();
+            return;
+        }
+
+        if (authorized != "true") {
+            _state = "User did not authorize";
+            StateHasChanged();
+            return;
+        }
+        
+        // Ask Serble for refresh and access tokens
+        SerbleApiResponse<(string, string)> response = await SerbleApiHandler.GetRefreshToken(code!);
+
+        if (!response.Success) {
+            _state = response.ErrorMessage;
+            StateHasChanged();
+            return;
+        }
+        
+        // Get user
+        SerbleApiResponse<User> userResponse = await SerbleApiHandler.GetUser(response.ResponseObject.Item2);
+        
+        if (!userResponse.Success) {
+            _state = userResponse.ErrorMessage;
+            StateHasChanged();
+            return;
+        }
+        User user = userResponse.ResponseObject!;
+
+        // Save refresh token
+        string sessionId = Guid.NewGuid().ToString();
+        // StoredUser storedUser = new() {
+        //     RefreshToken = response.ResponseObject.Item1,
+        //     Id = user.Id!,
+        //     SessionId = sessionId,
+        //     UsedTokens = 0
+        // };
+
+        StoredUser? existingUser = await Program.StorageManager.GetUser(user.Id!);
+        StoredUser storedUser = existingUser ?? new StoredUser {
+            Id = user.Id!,
+            LastTokenRenewal = DateTime.UtcNow.ToBinary()
+        };
+        storedUser.RefreshToken = response.ResponseObject.Item1;
+        storedUser.SessionId = sessionId;
+
+        if (existingUser == null) {
+            await Program.StorageManager.CreateUser(storedUser);
+        }
+        else {
+            await Program.StorageManager.UpdateUser(storedUser);
+        }
+
+        // Save access token to a cookie
+        await new Cookie(JsRuntime).SetValue("access_token", response.ResponseObject.Item2, 10);
+
+        NavigationManager.NavigateTo("/", true);
+    }
+
+    protected override async Task OnInitializedAsync() {
+        
+    }
+
+}

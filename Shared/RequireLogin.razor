@@ -1,0 +1,99 @@
+@using GeneralPurposeLib
+@using SerbleAi.Data
+@using SerbleAi.Data.Schemas
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
+
+@code {
+
+    [Parameter]
+    public Func<(User?, string), Task>? Callback { get; set; } = _ => Task.CompletedTask; 
+
+    [Parameter]
+    public bool RedirectToLogin { get; set; } = true;
+    
+    [Parameter]
+    public bool RedirectToAccessDenied { get; set; }
+    
+    [Parameter]
+    public bool NoLockdownCheck { get; set; }
+
+    [Parameter]
+    public AccountAccessLevel RequiredAccessLevel { get; set; } = AccountAccessLevel.Normal;
+
+    private PageType PageType => RequiredAccessLevel switch {
+        AccountAccessLevel.Normal => PageType.Account,
+        AccountAccessLevel.Admin => PageType.Admin,
+        _ => PageType.NonAccount
+    };
+
+    public void RunCheck(Func<(User?, string), Task> callback) {
+        Callback = callback;
+        RedirectToLogin = false;
+        OnAfterRender(true);
+    }
+
+    protected override async void OnAfterRender(bool firstRender) {
+        if (!firstRender) return;
+        Cookie cookieHandler = new (JsRuntime);
+        HtmlInteractor htmlInteractor = new(JsRuntime);
+        await htmlInteractor.Log("Checking if user is logged in...");
+        
+        // Check for oauth token
+        string token = await cookieHandler.GetValue("access_token");
+        if (token == "") {
+            token = "urmum";
+        }
+        
+        SerbleApiResponse<User> response = await SerbleApiHandler.GetUser(token);
+        if (!response.Success) {
+            await htmlInteractor.Log(response.ErrorMessage);
+            await NotLoggedIn();
+            return;
+        }
+        
+        await htmlInteractor.Log("User is logged in as " + response.ResponseObject!.Username);
+
+        // Callback
+        Callback!.Invoke((response.ResponseObject, token));
+    }
+    
+    private async Task NotLoggedIn(bool disabledAccount = false) {
+        // Redirect if redirect is enabled
+        HtmlInteractor htmlInteractor = new(JsRuntime);
+        await htmlInteractor.Log("User is not logged in");
+        if (RedirectToAccessDenied) {
+            NavigationManager.NavigateTo("/accessdenied?page=" + Uri.EscapeDataString(NavigationManager.Uri));
+            return;
+        }
+        if (disabledAccount) {
+            NavigationManager.NavigateTo("/accountdisabled");
+            return;
+        }
+        if (RedirectToLogin) {
+            await htmlInteractor.Log("Invoking login");
+            await AttemptOAuth();
+            return;
+        }
+        
+        // Otherwise run callback with null user
+        Callback!.Invoke((null, ""));
+    }
+
+    private void LockedDown() {
+        NavigationManager.NavigateTo("/lockdown");
+    }
+    
+    private async Task AttemptOAuth() {
+        HtmlInteractor htmlInteractor = new(JsRuntime);
+        await htmlInteractor.Log("Attempting OAuth...");
+        
+        string state = Guid.NewGuid().ToString().Replace("-", "");
+        // Save state to local storage
+        await JsRuntime.InvokeVoidAsync("localStorage.setItem", "oauth_state", state);
+        NavigationManager.NavigateTo(
+            $"{GlobalConfig.Config["OAuthUrl"].Text}?redirect_uri=" + Uri.EscapeDataString(NavigationManager.BaseUri + "oauthcallback") +
+            $"&client_id={GlobalConfig.Config["ClientID"].Text}&response_type=token&scope={GlobalConfig.Config["Scope"].Text}&state={state}");
+    }
+
+}
