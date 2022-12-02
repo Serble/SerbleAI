@@ -48,10 +48,13 @@
                         }
 
                     </div>
+                    <div style="background-color: #222426;">
+                        <p class="text-danger text-center" id="error"></p>
+                    </div>
                     <form onsubmit="return false" class="card-footer text-muted d-flex justify-content-start align-items-center p-3" style="background-color: #222426">
                         <input type="text" class="form-control form-control-lg" id="msg"
-                                   placeholder="Enter message" style="background-color: #222426; color: white">
-                            <button class="btn btn-lg btn-outline-light" @onclick="Send">Send</button>
+                               placeholder="Enter message" style="background-color: #222426; color: white">
+                        <button class="btn btn-lg btn-outline-light" @onclick="Send">Send</button>
                     </form>
                 </div>
 
@@ -64,14 +67,17 @@
 
 
 @code {
-    private string[] _messages = { "User: Hello", "Bot: Hey there friend!", "User: How are you?", "Bot: I'm good, it's nice to see you again" };
+    private string[] _messages = { "User: Hello", "Bot: Hey there friend!", "User: How are you?", "Bot: I'm good, it's nice to see you" };
     private string _openAiToken = "";
     private string _tokenType = "serble";
     private User? _user;
     private StoredUser? _storedUser;
+    private const int MaxCharacters = 256;
+    private const int UsedMessages = 5;
 
-    private async Task LoginCallback((User?, string) data) {
+    private Task LoginCallback((User?, string) data) {
         _user = data.Item1;
+        return Task.CompletedTask;
     }
 
     protected override async void OnAfterRender(bool firstRender) {
@@ -85,12 +91,24 @@
     private async void Send() {
         HtmlInteractor interactor = new(JsRuntime);
         string message = await interactor.GetValue("msg");
+        
+        // Validate
+        if (string.IsNullOrWhiteSpace(message)) {
+            await interactor.SetHtml("error", "Message cannot be empty");
+            return;
+        }
+        if (message.Length > MaxCharacters) {
+            await interactor.SetHtml("error", $"Message cannot be longer than {MaxCharacters} characters");
+            return;
+        }
+        await interactor.SetHtml("error", "");
+        
         await interactor.SetValue("msg", "");
         _messages = _messages.Append($"User: {message}").ToArray();
         StateHasChanged();
         await interactor.InvokeCode("var objDiv = document.getElementById('msgScroll');objDiv.scrollTop = objDiv.scrollHeight; console.log('scrolled to bottom');");
         
-        string conversation = string.Join("\n", _messages);
+        string conversation = string.Join("\n", _messages.TakeLast(UsedMessages));  // Only take the last X messages to stop overspending
         string prompt = AiManager.Personality + conversation;
 
         string token;

@@ -55,7 +55,7 @@
         await htmlInteractor.Log("User is logged in as " + response.ResponseObject!.Username);
 
         // Callback
-        Callback!.Invoke((response.ResponseObject, token));
+        await Callback!.Invoke((response.ResponseObject, token));
     }
     
     private async Task NotLoggedIn(bool disabledAccount = false) {
@@ -77,7 +77,7 @@
         }
         
         // Otherwise run callback with null user
-        Callback!.Invoke((null, ""));
+        await Callback!.Invoke((null, ""));
     }
 
     private void LockedDown() {
