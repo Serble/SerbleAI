@@ -5,9 +5,7 @@ using GeneralPurposeLib;
 namespace SerbleAi.Data; 
 
 public static class AiManager {
-    public const string Personality = "A chatbot that is friendly\n\n";
-    
-    public static async Task<AiResponse> GetResponse(string token, string prompt, string? userid = null) {
+    public static async Task<AiResponse> GetResponse(string token, string prompt, AiModel model, string? userid = null) {
 
         if (await ModerationCheck(token, prompt)) {
             return new AiResponse(true);
@@ -22,7 +20,7 @@ public static class AiManager {
             StringContent content = userid == null
                 ? new StringContent(
                     new {
-                        model = "text-davinci-002",
+                        model = AiModelToString(model),
                         prompt = promptContent,
                         temperature = 1,
                         max_tokens = 100,
@@ -79,7 +77,7 @@ public static class AiManager {
         }
     }
     
-    private static async Task<bool> ModerationCheck(string token, string context) {
+    public static async Task<bool> ModerationCheck(string token, string context) {
         try {
             HttpClient client = new();
             client.BaseAddress = new Uri("https://api.openai.com/v1/moderations");
@@ -110,7 +108,24 @@ public static class AiManager {
             return false;
         }
     }
+    
+    private static string AiModelToString(AiModel model) {
+        return model switch {
+            AiModel.TextDavinci => "text-davinci-003",
+            AiModel.TextCurie => "text-curie-001",
+            AiModel.TextBabbage => "text-babbage-001",
+            AiModel.TextAda => "text-ada-001",
+            _ => throw new ArgumentOutOfRangeException(nameof(model), model, null)
+        };
+    }
 
+}
+
+public enum AiModel {
+    TextDavinci,
+    TextCurie,
+    TextBabbage,
+    TextAda
 }
 
 public class AiResponse {

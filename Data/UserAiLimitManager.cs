@@ -8,8 +8,8 @@ public static class UserAiLimitManager {
     // Token limits are per user per month
 
     private const int DefaultLimit = 1000;  // Cost: 2c
-    private const int LoggedInLimit = 5000;  // Cost: 10c
-    private const int VerifiedEmailLimit = 10000;  // Cost: 20c
+    private const int LoggedInLimit = 2000;  // Cost: 4c
+    private const int VerifiedEmailLimit = 5000;  // Cost: 10c
     private const int PremiumLimit = 50000;  // Cost: $1
     
     public static int GetLimit(User? user) {

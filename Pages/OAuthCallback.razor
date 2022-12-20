@@ -86,8 +86,8 @@
             await Program.StorageManager.UpdateUser(storedUser);
         }
 
-        // Save access token to a cookie
-        await new Cookie(JsRuntime).SetValue("access_token", response.ResponseObject.Item2, 10);
+        // Save refresh token to a cookie                                                                 1 year
+        await new Cookie(JsRuntime).SetValue("refresh_token", response.ResponseObject.Item1, 24 * 365);
 
         NavigationManager.NavigateTo("/", true);
     }

@@ -1,0 +1,175 @@
+﻿@page "/translate"
+@inject IJSRuntime JsRuntime
+@using SerbleAi.Data
+@using SerbleAi.Data.Schemas
+@using GeneralPurposeLib
+
+<PageTitle>Serble AI - Translate</PageTitle>
+<RequireLogin Callback="LoginCallback" RedirectToLogin="false"></RequireLogin>
+<link href="css/chat.css" rel="stylesheet"/>
+
+<br/>
+<div class="row d-flex justify-content-center" style="padding-top: 20px">
+
+    <div class="col-3" style="padding-left: 20px">
+        <div class="">
+            <h1>Translate</h1>
+            <p>
+                <p>Lorem ipsum dolor sit amet. Aut saepe velit ut asperiores asperiores in doloribus beatae.
+                    Et placeat molestiae nam exercitationem maiores At repellat alias non cupiditate libero. </p>
+                <p>Aut quas amet id cupiditate omnis qui unde voluptas. Ut minus voluptas est labore dolor ad minus omnis! </p>
+                <p>Aut similique iusto vel molestias delectus ab velit galisum non laboriosam molestias quo dolores voluptas ut corrupti repellat.
+                    Vel ullam voluptatem eos distinctio vero ut quibusdam illo. Et mollitia debitis a corrupti provident ea vitae corrupti sed
+                    ducimus exercitationem eum consequatur sint qui rerum voluptatibus eos impedit nisi. </p>
+            </p>
+        </div>
+    </div>
+
+    <div class="col-4">
+        <section style="">
+            <div class="container py-5">
+
+                <div class="card" id="chat2">
+                    <div class="card-header d-flex justify-content-between align-items-center p-3" style="background-color: #222426">
+                        <h5 class="mb-0">Translator</h5>
+                        <a href="/settings" type="button" class="btn btn-secondary btn-sm" role="button" data-mdb-ripple-color="dark">Settings</a>
+                    </div>
+                    <div class="card-body overflow-auto" id="msgScroll" data-mdb-perfect-scrollbar="true" style="position: relative; height: 400px; background-color: #222426">
+
+                        <div class="d-flex flex-column justify-content-center">
+                            @* <LanguageDropdown Placeholder="Language" Id="origin-language"  *@
+                            @*                                           Class="form-control text-white border border-light"  *@
+                            @*                                           Style="background-color: #222426;"></LanguageDropdown> *@
+                            <textarea rows="3" class="text-white" style="background-color: #222426" id="origin-text"></textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-center">
+                            <h1>↓</h1>
+                        </div>
+
+                        <div class="d-flex flex-column justify-content-center">
+                            <LanguageDropdown Placeholder="Language" Id="translated-language" 
+                                              Class="form-control text-white border border-light" 
+                                              Style="background-color: #222426;"></LanguageDropdown>
+                            <textarea readonly rows="3" class="text-white" style="background-color: #222426;" id="translated-text"></textarea>
+                        </div>
+                        
+                        <br/>
+
+                        <div class="d-flex flex-row justify-content-evenly">
+                            <button class="btn btn-success" @onclick="DoTranslation">Translate</button>
+                            <button class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('translated-text').value);">Copy Translated</button>
+                        </div>
+
+                    </div>
+                    <div style="background-color: #222426;">
+                        <p class="text-danger text-center" id="error"></p>
+                    </div>
+                    
+                </div>
+
+            </div>
+        </section>
+    </div>
+
+    <div class="col-3" style="padding-right: 20px">
+        <h1>Options</h1>
+        <label for="personality">Personality</label>
+        <textarea id="personality" class="form-control text-white" aria-label="Personality" rows="3" style="background-color: #222426"></textarea>
+    </div>
+
+</div>
+
+
+
+@code {
+    private string _openAiToken = "";
+    private string _tokenType = "serble";
+    private User? _user;
+    private StoredUser? _storedUser;
+    private const int MaxCharacters = 256;
+
+    private Task LoginCallback((User?, string) data) {
+        _user = data.Item1;
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender) {
+            return;
+        }
+        HtmlInteractor htmlInteractor = new(JsRuntime);
+        _openAiToken = await htmlInteractor.GetFromLocalStorage("token");
+        _tokenType = await htmlInteractor.GetFromLocalStorage("tokenType");
+        StateHasChanged();
+    }
+
+    private async void DoTranslation() {
+        HtmlInteractor interactor = new(JsRuntime);
+        // string originLanguage = await interactor.GetValue("origin-language");
+        string translatedLanguage = await interactor.GetValue("translated-language");
+        
+        string originText = await interactor.GetValue("origin-text");
+        await interactor.SetValue("translated-text", "Loading...");
+        
+        if (originText.Length > MaxCharacters) {
+            await interactor.SetValue("error", "Text is too long");
+            return;
+        }
+        await interactor.SetHtml("error", "");
+        
+        string prompt = $"Translate the following to {translatedLanguage}:\nText: {originText}\n{translatedLanguage}:";
+        
+        string token;
+        bool isSerbleToken = _tokenType == "serble";
+        if (_tokenType == "token") {
+            token = _openAiToken;
+        }
+        else {  // Serble
+            if (!await UserAiLimitManager.CanUseAi(_user, prompt)) {
+                await interactor.Log("User has reached their AI limit");
+                await interactor.SetHtml("error", "You have reached your token limit, check when they renew <a href=\"/settings\">here</a>");
+                return;
+            }
+            token = GlobalConfig.Config["OpenAIToken"];
+        }
+        
+        // Get a response from the bot
+        // Put messages in this format: "User: Hello\nBot: Hi there!"
+        AiResponse resp;
+        try {
+            resp = await AiManager.GetResponse(token, prompt, AiModel.TextCurie, isSerbleToken ? _user!.Id! : null);
+        }
+        catch (Exception e) {
+            await interactor.Log(e.Message);
+            Logger.Debug(e);
+            resp = new AiResponse(0, "Error: " + e.Message);
+        }
+        
+        if (resp.Flagged) {
+            await interactor.SetHtml("error", $"Text was flagged by the OpenAI moderation engine");
+            StateHasChanged();
+            return;
+        }
+        
+        if (isSerbleToken) {
+            // Get stored user
+            if (_storedUser == null) {
+                _storedUser = await Program.StorageManager.GetUser(_user!.Id!);
+                if (_storedUser == null) {
+                    // Not on record
+                    await interactor.Log($"User {_user.Username!} not on record");
+                    Logger.Warn($"User {_user.Username!} not on record");
+                    await interactor.SetHtml("error", "Oh No, something went wrong. Please clear your cookies and try again");
+                    return;
+                }
+            }
+        
+            await UserAiLimitManager.AddTokens(_storedUser.Value, resp.UsedTokens);
+            await interactor.Log("Used " + resp.UsedTokens + " tokens");
+        }
+        
+        await interactor.SetValue("translated-text", resp.Text);
+    }
+    
+}

@@ -18,9 +18,11 @@ internal static class Program {
         { "MySQLUser", "admin" },
         { "MySQLPassword", "my complex password" },
         { "MySQLDatabase", "serbleai" },
-        { "OpenAIToken", "fancytoken" }
+        { "OpenAIToken", "fancytoken" },
+        { "EnableWhitelist", false }
     };
     public static IStorageManager StorageManager { get; private set; } = null!;
+    public static string[] Whitelist { get; private set; } = Array.Empty<string>();
 
     public static void Main(string[] args) {
         Logger.Init(LogLevel.Debug);
@@ -29,6 +31,17 @@ internal static class Program {
         Config config = new(DefaultConfig);
         GlobalConfig.Init(config);
         Logger.Info("Config loaded!");
+        
+        // Whitelist
+        if (GlobalConfig.Config["EnableWhitelist"]) {
+            if (!File.Exists("whitelist.txt")) {
+                Logger.Info("Whitelist file not found, only admins will be able to access site.");
+            }
+            else {
+                Whitelist = File.ReadAllLines("whitelist.txt");
+                Logger.Info("Whitelist loaded!");
+            }
+        }
 
         Logger.Info("Starting...");
 

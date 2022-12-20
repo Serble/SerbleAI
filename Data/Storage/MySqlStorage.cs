@@ -36,11 +36,11 @@ public class MySqlStorage : IStorageManager {
     }
 
     public Task CreateUser(StoredUser user) {
-        return SendMySqlStatement($"INSERT INTO users (id, session_id, refresh_token, used_tokens, last_token_renewal) VALUES ('{user.Id}', '{user.SessionId}', '{user.RefreshToken}', {user.UsedTokens}, {user.LastTokenRenewal})");
+        return SendMySqlStatement($"INSERT INTO users (id, session_id, refresh_token, used_tokens, last_token_renewal, is_banned) VALUES ('{user.Id}', '{user.SessionId}', '{user.RefreshToken}', {user.UsedTokens}, {user.LastTokenRenewal}, {user.IsBanned})");
     }
 
     public Task UpdateUser(StoredUser user) {
-        return SendMySqlStatement($"UPDATE users SET session_id = '{user.SessionId}', refresh_token = '{user.RefreshToken}', used_tokens = {user.UsedTokens}, last_token_renewal = {user.LastTokenRenewal} WHERE id = '{user.Id}'");
+        return SendMySqlStatement($"UPDATE users SET session_id = '{user.SessionId}', refresh_token = '{user.RefreshToken}', used_tokens = {user.UsedTokens}, last_token_renewal = {user.LastTokenRenewal}, is_banned = {user.IsBanned} WHERE id = '{user.Id}'");
     }
 
     public Task DeleteUser(StoredUser user) {
@@ -60,7 +60,8 @@ public class MySqlStorage : IStorageManager {
             SessionId = reader.GetString("session_id"),
             RefreshToken = reader.GetString("refresh_token"),
             UsedTokens = reader.GetInt32("used_tokens"),
-            LastTokenRenewal = reader.GetInt64("last_token_renewal")
+            LastTokenRenewal = reader.GetInt64("last_token_renewal"),
+            IsBanned = reader.GetBoolean("is_banned")
         };
         reader.Close();
         return user;

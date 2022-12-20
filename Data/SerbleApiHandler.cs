@@ -69,6 +69,42 @@ public static class SerbleApiHandler {
         }
         return new SerbleApiResponse<(string, string)>((refreshToken, accessToken));
     }
+
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="refreshToken">The user's oauth refresh token</param>
+    /// <returns>Access Token</returns>
+    public static async Task<SerbleApiResponse<string>> GetAccessToken(string refreshToken) {
+        // Send HTTP request to API
+        HttpClient client = new();
+        HttpResponseMessage response;
+        try {
+            response = await client.PostAsync(GlobalConfig.Config["SerbleApiUrl"] + 
+                                              $"oauth/token/access?" +
+                                              $"refresh_token={refreshToken}" +
+                                              $"&client_id={GlobalConfig.Config["ClientID"]}" +
+                                              $"&client_secret={GlobalConfig.Config["AppSecret"]}" +
+                                              $"&grant_type=authorization_code", new StringContent(""));
+        }
+        catch (Exception e) {
+            return new SerbleApiResponse<string>(false, "Error: " + e);
+        }
+        if (!response.IsSuccessStatusCode) {
+            return new SerbleApiResponse<string>(false, $"Non Success Code: {response.StatusCode}, {await response.Content.ReadAsStringAsync()}");
+        }
+        // Parse response
+        string accessToken;
+        try {
+            JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            accessToken = doc.RootElement.GetProperty("access_token").GetString()!;
+        }
+        catch (Exception e) {
+            return new SerbleApiResponse<string>(false, $"Failed to parse response: {e.Message}");
+        }
+        return new SerbleApiResponse<string>(accessToken);
+    }
     
     public static async Task<SerbleApiResponse<User>> RegisterUser(string username, string password, string recaptchaToken) {
         // Send HTTP request to API
@@ -278,6 +314,10 @@ public class SerbleApiResponse<T> {
         ResponseObject = default;
         ErrorMessage = errorMessage;
         ErrorFlag = errorFlag;
+    }
+    
+    public static implicit operator T(SerbleApiResponse<T> response) {
+        return response.ResponseObject.ThrowIfNull();
     }
 
 }

@@ -15,13 +15,14 @@ else {
             <div class="col-md-5 border-right">
                 
                 <h2>Local Settings</h2>
+                <hr/>
                 
                 @if (_user == null) {
                     <h3>User Not Logged In</h3>
                 }
                 else {
                     <h3>
-                        User <em>@_user.Username</em> has used
+                        User <em>@_user.Username</em> (@_user.Id) has used
                         <em>@_storedUser.UsedTokens</em> out of <em>@UserAiLimitManager.GetLimit(_user)</em> tokens from Serble
                         (@(_storedUser.UsedTokens / (float) UserAiLimitManager.GetLimit(_user))%)
                     </h3>

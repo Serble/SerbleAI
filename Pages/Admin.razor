@@ -1,0 +1,118 @@
+@page "/Admin"
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@using SerbleAi.Data.Schemas
+@using SerbleAi.Data
+<RequireLogin RequiredAccessLevel="AccountAccessLevel.Admin" Callback="LoginCallback" RedirectToAccessDenied="true"></RequireLogin>
+
+@if (!_isAuthenticated) {
+    <div class="text-center">
+        <h1>Checking account permissions...</h1>
+            <p>This page is only viewable by Serble Administrators.</p>
+    </div>
+}
+else {
+    <div class="d-flex flex-column justify-content-center">
+        
+        <div>
+            <h1>User Manager</h1>
+            <p>Manage users and their permissions.</p>
+            
+            <label for="usrman-userid">User ID</label>
+            <div class="row">
+                <div class="col"><input type="text" class="form-control bg-dark text-white" id="usrman-userid"/></div>
+                <div class="col"><button class="btn btn-success" @onclick="FindUser">Find</button></div>
+            </div>
+            @if (_selectedUser == null) {
+                <h4>User Not Found</h4>
+            }
+            else {
+                <div>
+                    <h4>@_selectedUser.Value.Id</h4>
+                    @if (_selectedSerbleUser == null) {
+                        <p>Refresh Token: Invalid</p>
+                        <p>Tokens: @_selectedUser.Value.UsedTokens</p>
+                        <p>Renews: @(DateTime.FromBinary(_selectedUser.Value.LastTokenRenewal).ToLocalTime().AddDays(28))</p>
+                        <p>Is Banned: @_selectedUser.Value.IsBanned</p>
+                        <button class="btn btn-danger" @onclick="ToggleBan">@(_selectedUser.Value.IsBanned ? "Revoke Ban" : "Ban")</button>
+                        <button class="btn btn-success" @onclick="ResetTokens">Reset Tokens</button>
+                    }
+                    else {
+                        <p>Username: @_selectedSerbleUser.Username</p>
+                        <p>Email: @_selectedSerbleUser.Email (@(_selectedSerbleUser.VerifiedEmail ? "Verified" : "Not Verified"))</p>
+                        <p>Premium Level: @_selectedSerbleUser.PremiumLevel</p>
+                        <p>Refresh Token: Valid</p>
+                        <p>Tokens: @_selectedUser.Value.UsedTokens / @(UserAiLimitManager.GetLimit(_selectedSerbleUser)) (@(_selectedUser.Value.UsedTokens / (float) UserAiLimitManager.GetLimit(_selectedSerbleUser))%)</p>
+                        <p>Renews: @(DateTime.FromBinary(_selectedUser.Value.LastTokenRenewal).ToLocalTime().AddDays(28))</p>
+                        <p>Is Banned: @_selectedUser.Value.IsBanned</p>
+                        <button class="btn btn-danger" @onclick="ToggleBan">@(_selectedUser.Value.IsBanned ? "Revoke Ban" : "Ban")</button>
+                        <button class="btn btn-success" @onclick="ResetTokens">Reset Tokens</button>
+                        <button class="btn btn-success" @onclick="Impersonate">Log In As User</button>
+                    }
+                </div>
+            }
+        </div>
+        
+    </div>
+}
+
+@code {
+    
+    private bool _isAuthenticated;
+    private StoredUser? _selectedUser;
+    private User? _selectedSerbleUser;
+
+    private async void FindUser() {
+        HtmlInteractor interactor = new(JSRuntime);
+        string userId = await interactor.GetValue("usrman-userid");
+        _selectedUser = await Program.StorageManager.GetUser(userId);
+        if (_selectedUser == null) {
+            StateHasChanged();
+            return;
+        }
+        await _selectedUser!.Value.CheckTokens();
+        StateHasChanged();
+        
+        SerbleApiResponse<string> accessTokenResp = await SerbleApiHandler.GetAccessToken(_selectedUser!.Value.RefreshToken);
+        if (!accessTokenResp.Success) {
+            return;
+        }
+        
+        SerbleApiResponse<User> userResp = await SerbleApiHandler.GetUser(accessTokenResp);
+        if (!userResp.Success) {
+            return;
+        }
+        
+        _selectedSerbleUser = userResp;
+        StateHasChanged();
+    }
+
+    private async void ToggleBan() {
+        if (_selectedUser == null) return;
+        StoredUser newUser = _selectedUser.Value;
+        newUser.IsBanned = !newUser.IsBanned;
+        await Program.StorageManager.UpdateUser(newUser);
+        StateHasChanged();
+    }
+
+    private async void Impersonate() {
+        Cookie cookie = new(JSRuntime);
+        await cookie.SetValue("refresh_token", _selectedUser!.Value.RefreshToken);
+        NavigationManager.NavigateTo("/settings");
+    }
+
+    private async void ResetTokens() {
+        if (_selectedUser == null) return;
+        StoredUser newUser = _selectedUser.Value;
+        newUser.UsedTokens = 0;
+        newUser.LastTokenRenewal = DateTime.UtcNow.ToBinary();
+        await Program.StorageManager.UpdateUser(newUser);
+        StateHasChanged();
+    }
+    
+    private Task LoginCallback((User?, string) data) {
+        _isAuthenticated = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+}

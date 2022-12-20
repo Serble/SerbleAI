@@ -6,4 +6,5 @@ public struct StoredUser {
     public string RefreshToken;
     public int UsedTokens;
     public long LastTokenRenewal;
+    public bool IsBanned;
 }
