@@ -9,8 +9,8 @@ internal static class Program {
     private static readonly Dictionary<string, Property> DefaultConfig = new() {
         { "SerbleApiUrl", "https://api.serble.net/api/v1/" },
         { "OAuthUrl", "https://localhost:7244/oauth/authorize" },
-        { "ClientID", "fe140ca4-9c47-4f66-8bcf-651e244d9040" },
-        { "AppSecret", "7cbfe44f-9c47-8bcf-4f66-ffe709fdc023" },
+        { "ClientID", "Serble Client ID" },
+        { "AppSecret", "Serble App Secret" },
         { "Scope", "user_info" },
         { "RecaptchaSiteKey", "ReCaptchaSiteKey" },
         { "StorageMethod", "MySQL" },
