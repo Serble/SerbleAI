@@ -56,5 +56,21 @@ public class HtmlInteractor {
     public async Task InvokeCode(string code) {
         await _jsRuntime.InvokeVoidAsync("eval", code);
     }
+    
+    public async Task<string> GetTimeZone() {
+        return await _jsRuntime.InvokeAsync<string>("eval", "Intl.DateTimeFormat().resolvedOptions().timeZone");
+    }
+    
+    public async Task<string> GetLanguage() {
+        return await _jsRuntime.InvokeAsync<string>("eval", "navigator.language");
+    }
+    
+    public async Task<string> GetDateTime() {
+        return await _jsRuntime.InvokeAsync<string>("eval", "new Date().toISOString()");
+    }
+    
+    public async Task<bool> GetDaylightSavings() {
+        return await _jsRuntime.InvokeAsync<bool>("eval", "new Date().getTimezoneOffset() < new Date(new Date().getFullYear(), 0, 1).getTimezoneOffset()");
+    }
 
 }

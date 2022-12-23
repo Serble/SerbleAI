@@ -8,7 +8,7 @@ public static class UserAiLimitManager {
     // Token limits are per user per month
 
     private const int DefaultLimit = 1000;  // Cost: 2c
-    private const int LoggedInLimit = 2000;  // Cost: 4c
+    private const int LoggedInLimit = 1000;  // Cost: 2c
     private const int VerifiedEmailLimit = 5000;  // Cost: 10c
     private const int PremiumLimit = 50000;  // Cost: $1
     
@@ -67,7 +67,7 @@ public static class UserAiLimitManager {
         int limit = GetLimit(user);
         
         // Check if the user can use AI
-        return storedUser.Value.UsedTokens + tokens <= limit;
+        return storedUser.Value.UsedTokens + tokens + AiManager.MaxTokensInResponse <= limit;
     }
 
     public static Task<bool> CanUseAi(User? user, string prompt) => CanUseAi(user, prompt.Length / 4);

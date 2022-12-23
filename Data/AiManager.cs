@@ -5,6 +5,9 @@ using GeneralPurposeLib;
 namespace SerbleAi.Data; 
 
 public static class AiManager {
+    
+    public const int MaxTokensInResponse = 100;
+    
     public static async Task<AiResponse> GetResponse(string token, string prompt, AiModel model, string? userid = null) {
 
         if (await ModerationCheck(token, prompt)) {
@@ -23,7 +26,7 @@ public static class AiManager {
                         model = AiModelToString(model),
                         prompt = promptContent,
                         temperature = 1,
-                        max_tokens = 100,
+                        max_tokens = MaxTokensInResponse,
                         top_p = 1,
                         frequency_penalty = 2,
                         presence_penalty = 2,
@@ -35,7 +38,7 @@ public static class AiManager {
                         model = "text-davinci-002",
                         prompt = promptContent,
                         temperature = 1,
-                        max_tokens = 100,
+                        max_tokens = MaxTokensInResponse,
                         top_p = 1,
                         frequency_penalty = 2,
                         presence_penalty = 2,

@@ -15,13 +15,9 @@
         <div class="">
             <h1>Chat Bot</h1>
             <p>
-                AI chatbot using OpenAI's services.
-                <p>Lorem ipsum dolor sit amet. Aut saepe velit ut asperiores asperiores in doloribus beatae.
-                    Et placeat molestiae nam exercitationem maiores At repellat alias non cupiditate libero. </p>
-                <p>Aut quas amet id cupiditate omnis qui unde voluptas. Ut minus voluptas est labore dolor ad minus omnis! </p>
-                <p>Aut similique iusto vel molestias delectus ab velit galisum non laboriosam molestias quo dolores voluptas ut corrupti repellat.
-                    Vel ullam voluptatem eos distinctio vero ut quibusdam illo. Et mollitia debitis a corrupti provident ea vitae corrupti sed
-                    ducimus exercitationem eum consequatur sint qui rerum voluptatibus eos impedit nisi. </p>
+                This bot was created before ChatGPT was released. It may not be as good as ChatGPT, but it allows you to change the personality of the bot.
+                Not everything the bot says will be accurate, and it has very limited knowledge of current events however it does know
+                your username, your timezone, and your browser's reported time.
             </p>
         </div>
     </div>
@@ -115,11 +111,6 @@
         _personality = savedPersonality;
         StateHasChanged();
     }
-    
-    // protected override async Task OnInitializedAsync() {
-    //     
-    //     //await htmlInteractor.SetHtml("personality", savedPersonality);
-    // }
 
     private async void Send() {
         HtmlInteractor interactor = new(JsRuntime);
@@ -146,7 +137,15 @@
         await interactor.InvokeCode("var objDiv = document.getElementById('msgScroll');objDiv.scrollTop = objDiv.scrollHeight; console.log('scrolled to bottom');");
         
         string conversation = string.Join("\n", _messages.TakeLast(UsedMessages));  // Only take the last X messages to stop overspending
-        string prompt = personality + "\n\n" + conversation;
+        string timezone = await interactor.GetTimeZone();
+        string timeIso = await interactor.GetDateTime();
+        bool daylightSavings = await interactor.GetDaylightSavings();
+        string context = $"\n" +
+                         $"DateTime ISO: {timeIso}\n" +
+                         $"Timezone: {timezone}\n" +
+                         $"Is Daylight Savings: {daylightSavings}\n" +
+                         $"User's Name: {_user!.Username}";
+        string prompt = personality + context + "\n\n" + conversation;
 
         string token;
         bool isSerbleToken;
