@@ -297,7 +297,7 @@ public static class SerbleApiHandler {
         // Send HTTP request to API
         HttpClient client = new();
         HttpResponseMessage response;
-        client.DefaultRequestHeaders.Add("SerbleAuth", "User " + token);
+        client.DefaultRequestHeaders.Add("SerbleAuth", "App " + token);
         try {
             response = await client.GetAsync($"{GlobalConfig.Config["SerbleApiUrl"]}products");
         }
