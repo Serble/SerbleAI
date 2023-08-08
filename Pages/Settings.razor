@@ -23,8 +23,8 @@ else {
                 else {
                     <h3>
                         User <em>@_user.Username</em> (@_user.Id) has used
-                        <em>@_storedUser.UsedTokens</em> out of <em>@UserAiLimitManager.GetLimit(_user)</em> tokens from Serble
-                        (@(_storedUser.UsedTokens / (float) UserAiLimitManager.GetLimit(_user))%)
+                        <em>@_storedUser.UsedTokens</em> out of <em>@_tokenLimit</em> tokens from Serble
+                        (@(_storedUser.UsedTokens / (float) _tokenLimit)%)
                     </h3>
                     <h4>
                         Resets @_resetDate.DayOfWeek.ToString() 
@@ -93,6 +93,7 @@ else {
     private DateTime _resetDate;
     private string _tokenType = "serble";
     private string _token = "";
+    private int _tokenLimit = 0;
 
     private async Task UpdateTokenType(string type) {
         _tokenType = type;
@@ -104,6 +105,8 @@ else {
     private async Task OnLogin((User?, string) data) {
         _loaded = true;
         _user = data.Item1;
+
+        _tokenLimit = await UserAiLimitManager.GetLimit(_user, data.Item2);
         
         HtmlInteractor htmlInteractor = new(JSRuntime);
         string tokenType = await htmlInteractor.GetFromLocalStorage("tokenType");

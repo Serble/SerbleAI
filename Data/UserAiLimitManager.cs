@@ -12,11 +12,11 @@ public static class UserAiLimitManager {
     private const int VerifiedEmailLimit = 5000;  // Cost: 10c
     private const int PremiumLimit = 50000;  // Cost: $1
     
-    public static int GetLimit(User? user) {
+    public static async Task<int> GetLimit(User? user, string token) {
         if (user == null) {
             return DefaultLimit;
         }
-        if (user.PremiumLevel == 10) {
+        if (await PremiumStatusCache.IsPremium(user, token)) {
             return PremiumLimit;
         }
         if (user.VerifiedEmail) {
@@ -50,7 +50,7 @@ public static class UserAiLimitManager {
         user = await CheckForTokenRefresh(user);
     }
 
-    public static async Task<bool> CanUseAi(User? user, int tokens) {
+    public static async Task<bool> CanUseAi(User? user, string token, int tokens) {
         if (user == null) {
             return false;
         }
@@ -64,12 +64,12 @@ public static class UserAiLimitManager {
         await storedUser.Value.CheckTokens();
 
         // Get the user's current AI limit
-        int limit = GetLimit(user);
+        int limit = await GetLimit(user, token);
         
         // Check if the user can use AI
         return storedUser.Value.UsedTokens + tokens + AiManager.MaxTokensInResponse <= limit;
     }
 
-    public static Task<bool> CanUseAi(User? user, string prompt) => CanUseAi(user, prompt.Length / 4);
+    public static Task<bool> CanUseAi(User? user, string token, string prompt) => CanUseAi(user, token, prompt.Length / 4);
 
 }

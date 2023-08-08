@@ -82,9 +82,11 @@
     private User? _user;
     private StoredUser? _storedUser;
     private const int MaxCharacters = 256;
+    private string? _token;
 
     private Task LoginCallback((User?, string) data) {
         _user = data.Item1;
+        _token = data.Item2;
         return Task.CompletedTask;
     }
 
@@ -120,7 +122,7 @@
             token = _openAiToken;
         }
         else {  // Serble
-            if (!await UserAiLimitManager.CanUseAi(_user, prompt)) {
+            if (!await UserAiLimitManager.CanUseAi(_user, _token!, prompt)) {
                 await interactor.Log("User has reached their AI limit");
                 await interactor.SetHtml("error", "You have reached your token limit, check when they renew <a href=\"/settings\">here</a>");
                 return;

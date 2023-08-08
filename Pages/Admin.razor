@@ -42,7 +42,7 @@ else {
                         <p>Email: @_selectedSerbleUser.Email (@(_selectedSerbleUser.VerifiedEmail ? "Verified" : "Not Verified"))</p>
                         <p>Premium Level: @_selectedSerbleUser.PremiumLevel</p>
                         <p>Refresh Token: Valid</p>
-                        <p>Tokens: @_selectedUser.Value.UsedTokens / @(UserAiLimitManager.GetLimit(_selectedSerbleUser)) (@(_selectedUser.Value.UsedTokens / (float) UserAiLimitManager.GetLimit(_selectedSerbleUser))%)</p>
+                        <p>Tokens: @_selectedUser.Value.UsedTokens / @(_tokenLimit) (@(_selectedUser.Value.UsedTokens / (float) _tokenLimit)%)</p>
                         <p>Renews: @(DateTime.FromBinary(_selectedUser.Value.LastTokenRenewal).ToLocalTime().AddDays(28))</p>
                         <p>Is Banned: @_selectedUser.Value.IsBanned</p>
                         <button class="btn btn-danger" @onclick="ToggleBan">@(_selectedUser.Value.IsBanned ? "Revoke Ban" : "Ban")</button>
@@ -61,6 +61,7 @@ else {
     private bool _isAuthenticated;
     private StoredUser? _selectedUser;
     private User? _selectedSerbleUser;
+    private int _tokenLimit = 0;
 
     private async void FindUser() {
         HtmlInteractor interactor = new(JSRuntime);
@@ -84,6 +85,7 @@ else {
         }
         
         _selectedSerbleUser = userResp;
+        _tokenLimit = await UserAiLimitManager.GetLimit(_selectedSerbleUser, accessTokenResp);
         StateHasChanged();
     }
 

@@ -292,6 +292,32 @@ public static class SerbleApiHandler {
         // Don't parse response
         return new SerbleApiResponse<bool>(true);
     }
+    
+    public static async Task<SerbleApiResponse<string[]>> GetUsersOwnedProducts(string token) {
+        // Send HTTP request to API
+        HttpClient client = new();
+        HttpResponseMessage response;
+        client.DefaultRequestHeaders.Add("SerbleAuth", "User " + token);
+        try {
+            response = await client.GetAsync($"{GlobalConfig.Config["SerbleApiUrl"]}products");
+        }
+        catch (Exception e) {
+            return new SerbleApiResponse<string[]>(false, "Failed: " + e);
+        }
+        if (!response.IsSuccessStatusCode) {
+            Console.WriteLine("Response: " + await response.Content.ReadAsStringAsync());
+            return new SerbleApiResponse<string[]>(false, $"Failed: {response.StatusCode}");
+        }
+        // Parse response
+        string responseStr = await response.Content.ReadAsStringAsync();
+        try {
+            return new SerbleApiResponse<string[]>(JsonSerializer.Deserialize<string[]>(responseStr).ThrowIfNull());
+        }
+        catch (Exception e) {
+            Console.WriteLine(e);
+            return new SerbleApiResponse<string[]>(false, $"Failed to parse response: {e.Message}");
+        }
+    }
 
 }
 
